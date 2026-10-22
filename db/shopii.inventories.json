@@ -1,0 +1,133 @@
+[{
+  "_id": {
+    "$oid": "68767d1f9c8128b5daaee91e"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c8d"
+  },
+  "quantity": 100,
+  "lastUpdated": {
+    "$date": "2025-07-24T03:44:52.900Z"
+  },
+  "createdAt": {
+    "$date": "2025-07-15T16:09:03.792Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T14:47:04.905Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68767d1f9c8128b5daaee91f"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c8e"
+  },
+  "quantity": 51,
+  "lastUpdated": {
+    "$date": "2025-07-24T04:13:10.988Z"
+  },
+  "createdAt": {
+    "$date": "2025-07-15T16:09:03.793Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T14:47:00.534Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68767d1f9c8128b5daaee920"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610ca1"
+  },
+  "quantity": 9,
+  "lastUpdated": {
+    "$date": "2025-07-23T16:40:18.181Z"
+  },
+  "createdAt": {
+    "$date": "2025-07-15T16:09:03.793Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-23T16:40:18.182Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6879e94c2324a913a52074a4"
+  },
+  "productId": {
+    "$oid": "6879e94c2324a913a52074a2"
+  },
+  "quantity": 100,
+  "lastUpdated": {
+    "$date": "2025-07-18T06:27:24.739Z"
+  },
+  "createdAt": {
+    "$date": "2025-07-18T06:27:24.741Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-18T06:27:24.741Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "688244e53adece17544fb2a5"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c91"
+  },
+  "quantity": 10,
+  "lastUpdated": {
+    "$date": "2025-07-24T14:36:21.860Z"
+  },
+  "createdAt": {
+    "$date": "2025-07-24T14:36:21.862Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T14:49:44.431Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "688244e53adece17544fb2a4"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c90"
+  },
+  "quantity": 10,
+  "lastUpdated": {
+    "$date": "2025-07-24T14:36:21.859Z"
+  },
+  "createdAt": {
+    "$date": "2025-07-24T14:36:21.861Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T14:49:40.611Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "688244e53adece17544fb2a6"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c92"
+  },
+  "quantity": 10,
+  "lastUpdated": {
+    "$date": "2025-07-24T14:36:21.861Z"
+  },
+  "createdAt": {
+    "$date": "2025-07-24T14:36:21.862Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T14:49:48.613Z"
+  },
+  "__v": 0
+}]

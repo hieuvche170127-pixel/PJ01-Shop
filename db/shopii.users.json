@@ -1,0 +1,54 @@
+[{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c88"
+  },
+  "username": "johndoe",
+  "fullname": "John Doe",
+  "email": "thangnguyen11112002@gmail.com",
+  "password": "$2b$10$GHVNmgYB9W9RE2Fs6BCAsOeMl5ec.KjMQ8sOTHRmaak0yJ3qZGkBe",
+  "role": "buyer",
+  "avatarURL": "https://example.com/avatars/john.jpg",
+  "action": "unlock",
+  "createdAt": {
+    "$date": "2023-06-21T10:00:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T07:12:57.150Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c89"
+  },
+  "username": "janesmith",
+  "fullname": "Jane Smith",
+  "email": "thangndhe172360@fpt.edu.vn",
+  "password": "$2b$10$aVlJe6bEhcR6BHZ2RequteMMjVlEJ9Wbv.RZ7rsWPs9mIL2wyhMTC",
+  "role": "seller",
+  "avatarURL": "https://sm.ign.com/t/ign_nordic/cover/a/avatar-gen/avatar-generations_prsz.600.jpg",
+  "action": "unlock",
+  "createdAt": {
+    "$date": "2023-06-21T11:00:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-16T05:02:34.681Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c8a"
+  },
+  "username": "admin",
+  "fullname": "Admin User",
+  "email": "winfourt4@gmail.com",
+  "password": "$2b$10$04H3KSPmEpRVaKn8DANpleVj9/lwCs3gTuu5EeJTU0iEb.hK9Qbom",
+  "role": "admin",
+  "avatarURL": "https://example.com/avatars/admin.jpg",
+  "action": "unlock",
+  "createdAt": {
+    "$date": "2023-06-21T09:00:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T06:26:46.325Z"
+  }
+}]

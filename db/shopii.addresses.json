@@ -1,0 +1,21 @@
+[{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c8c"
+  },
+  "userId": {
+    "$oid": "60d21b4667d0d8992e610c88"
+  },
+  "fullName": "John Doe",
+  "phone": "1234567890",
+  "street": "123 Main St",
+  "city": "New York",
+  "state": "NY",
+  "country": "USA",
+  "isDefault": true,
+  "createdAt": {
+    "$date": "2023-06-22T15:00:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2023-06-22T15:00:00.000Z"
+  }
+}]

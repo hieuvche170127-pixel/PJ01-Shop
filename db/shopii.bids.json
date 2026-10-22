@@ -1,0 +1,44 @@
+[{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c91"
+  },
+  "userId": {
+    "$oid": "60d21b4667d0d8992e610c88"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c8e"
+  },
+  "bidAmount": 1350,
+  "bidDate": {
+    "$date": "2023-06-28T16:45:00.000Z"
+  },
+  "isWinningBid": false,
+  "createdAt": {
+    "$date": "2023-06-28T16:45:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2023-06-28T16:45:00.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610caa"
+  },
+  "userId": {
+    "$oid": "60d21b4667d0d8992e610c88"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c8e"
+  },
+  "bidAmount": 1400,
+  "bidDate": {
+    "$date": "2023-06-29T10:15:00.000Z"
+  },
+  "isWinningBid": true,
+  "createdAt": {
+    "$date": "2023-06-29T10:15:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2023-06-29T10:15:00.000Z"
+  }
+}]

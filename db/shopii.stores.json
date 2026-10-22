@@ -1,0 +1,18 @@
+[{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c8b"
+  },
+  "sellerId": {
+    "$oid": "60d21b4667d0d8992e610c89"
+  },
+  "storeName": "Jane's Electronics",
+  "description": "Quality electronic products at affordable prices",
+  "bannerImageURL": "https://eastatlanticnetwork.com/wp-content/uploads/2023/08/Sales-and-installations-of-electronics-600x434.jpg",
+  "status": "approved",
+  "createdAt": {
+    "$date": "2023-06-22T10:00:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-16T05:02:04.932Z"
+  }
+}]

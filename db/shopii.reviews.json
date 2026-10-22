@@ -1,0 +1,62 @@
+[{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c92"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c8d"
+  },
+  "reviewerId": {
+    "$oid": "60d21b4667d0d8992e610c88"
+  },
+  "rating": 5,
+  "comment": "Excellent product, very satisfied with the purchase!",
+  "parentId": null,
+  "createdAt": {
+    "$date": "2023-07-01T18:20:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2023-07-01T18:20:00.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610cab"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c8d"
+  },
+  "reviewerId": {
+    "$oid": "60d21b4667d0d8992e610c89"
+  },
+  "comment": "Thank you for your positive feedback!",
+  "parentId": {
+    "$oid": "60d21b4667d0d8992e610c92"
+  },
+  "createdAt": {
+    "$date": "2023-07-02T09:30:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2023-07-02T09:30:00.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68805260b2338f453606be29"
+  },
+  "productId": {
+    "$oid": "60d21b4667d0d8992e610c8e"
+  },
+  "reviewerId": {
+    "$oid": "60d21b4667d0d8992e610c88"
+  },
+  "rating": 5,
+  "comment": "xịn",
+  "parentId": null,
+  "createdAt": {
+    "$date": "2025-07-23T03:09:20.464Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-23T03:09:20.464Z"
+  },
+  "__v": 0
+}]

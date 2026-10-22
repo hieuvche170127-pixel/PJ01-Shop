@@ -1,0 +1,39 @@
+[{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c85"
+  },
+  "name": "Electronics",
+  "description": "Electronic devices and accessories",
+  "createdAt": {
+    "$date": "2023-06-20T10:00:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2023-06-20T10:00:00.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c86"
+  },
+  "name": "Clothing",
+  "description": "Fashion items and apparel",
+  "createdAt": {
+    "$date": "2023-06-20T10:05:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2023-06-20T10:05:00.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c87"
+  },
+  "name": "Home & Kitchen",
+  "description": "Home appliances and kitchen items",
+  "createdAt": {
+    "$date": "2023-06-20T10:10:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2023-06-20T10:10:00.000Z"
+  }
+}]

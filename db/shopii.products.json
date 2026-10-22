@@ -1,0 +1,121 @@
+[{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c8d"
+  },
+  "title": "Smartphone X",
+  "description": "Latest smartphone with advanced features\n",
+  "price": 1000,
+  "image": "https://cdn.tgdd.vn/Products/Images/42/114115/iphone-x-64gb-bac-750x500.png",
+  "categoryId": {
+    "$oid": "60d21b4667d0d8992e610c85"
+  },
+  "sellerId": {
+    "$oid": "60d21b4667d0d8992e610c89"
+  },
+  "isAuction": true,
+  "createdAt": {
+    "$date": "2023-06-23T10:30:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T15:07:27.359Z"
+  },
+  "auctionEndTime": null
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c8e"
+  },
+  "title": "Designer Watch",
+  "description": "Limited edition luxury watch",
+  "price": 1299.99,
+  "image": "https://www.mrporter.com/variants/images/1647597310328092/ou/w358_q60.jpg",
+  "categoryId": {
+    "$oid": "60d21b4667d0d8992e610c85"
+  },
+  "sellerId": {
+    "$oid": "60d21b4667d0d8992e610c89"
+  },
+  "isAuction": true,
+  "auctionEndTime": {
+    "$date": "2023-07-10T23:59:59.000Z"
+  },
+  "createdAt": {
+    "$date": "2023-06-23T11:45:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T14:47:00.515Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c90"
+  },
+  "title": "Gaming Laptop Pro",
+  "description": "RTX 4080, 32GB RAM, 1TB SSD, 240Hz display",
+  "price": 2200,
+  "image": "https://minhhightech.com/admin/sanpham/Redmi-G-Pro_6088.jpg",
+  "categoryId": {
+    "$oid": "60d21b4667d0d8992e610c86"
+  },
+  "sellerId": {
+    "$oid": "60d21b4667d0d8992e610c89"
+  },
+  "isAuction": true,
+  "auctionEndTime": {
+    "$date": "2025-08-05T18:00:00.000Z"
+  },
+  "createdAt": {
+    "$date": "2025-07-20T09:15:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T14:48:02.357Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c91"
+  },
+  "title": "Wireless Noise-Canceling Headphones",
+  "description": "50h battery, Hi-Res Audio, multipoint connectivity",
+  "price": 299.99,
+  "image": "https://images.philips.com/is/image/philipsconsumer/491e2dd5e0d1466f8ee5b0cd010451ae?wid=700&hei=700&$pnglarge$",
+  "categoryId": {
+    "$oid": "60d21b4667d0d8992e610c87"
+  },
+  "sellerId": {
+    "$oid": "60d21b4667d0d8992e610c89"
+  },
+  "isAuction": true,
+  "auctionEndTime": null,
+  "createdAt": {
+    "$date": "2025-07-10T14:20:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T14:48:41.055Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "60d21b4667d0d8992e610c92"
+  },
+  "title": "Professional DSLR Camera",
+  "description": "24.2MP, 4K video, 3-inch touchscreen, kit lens included",
+  "price": 1499.95,
+  "image": "https://offshoreclipping.com/wp-content/uploads/2021/12/Best-DSLR-Camera-for-Professional-Photography.jpg",
+  "categoryId": {
+    "$oid": "60d21b4667d0d8992e610c85"
+  },
+  "sellerId": {
+    "$oid": "60d21b4667d0d8992e610c89"
+  },
+  "isAuction": true,
+  "auctionEndTime": {
+    "$date": "2025-07-31T23:59:59.000Z"
+  },
+  "createdAt": {
+    "$date": "2025-07-05T08:45:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-07-24T21:07:48.366Z"
+  }
+}]
