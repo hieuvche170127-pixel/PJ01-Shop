@@ -2,6 +2,7 @@
 require("dotenv").config(); // 👉 Load biến môi trường ở đây!
 
 const nodemailer = require("nodemailer");
+const logger = require("./logger");
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -20,9 +21,9 @@ const sendEmail = async (to, subject, text) => {
       text,
     };
     await transporter.sendMail(mailOptions);
-    console.info(`Email sent to ${to}: ${subject}`);
+    logger.info('Email sent');
   } catch (error) {
-    console.error(`Error sending email to ${to}:`, error);
+    logger.error('Email delivery failed', error);
     throw new Error("Failed to send email");
   }
 };

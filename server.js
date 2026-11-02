@@ -1,47 +1,23 @@
+const dotenv = require("dotenv");
+dotenv.config(); // Move dotenv.config() to top before any local modules load
+
 const express = require("express");
 const { connect } = require("mongoose");
 const router = require("./src/routers/index.js");
-const dotenv = require("dotenv");
 const cors = require("cors");
 const { initScheduler } = require("./src/config/scheduler");
 const http = require("http");
 const { initSocketServer } = require("./src/services/socketService");
 
 const app = express();
-dotenv.config(); // Move dotenv.config() before using process.env
 
-app.use(cors({
-  origin: [process.env.CLIENT_URL || 'http://localhost:3000'],
-  credentials: true
-}));
+app.use(require('./src/config/corsPolicy').middleware);
 app.use(express.json());
 
-// Add request logging middleware
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  
-  // Log request body for POST/PUT requests
-  if (req.method === 'POST' || req.method === 'PUT') {
-    console.log('Request body:', JSON.stringify(req.body));
-  }
-  
-  // Capture the original send
-  const originalSend = res.send;
-  
-  // Override send to log response
-  res.send = function(body) {
-    console.log(`[${new Date().toISOString()}] Response ${res.statusCode} for ${req.url}`);
-    
-    // Restore original send and call it
-    res.send = originalSend;
-    return res.send(body);
-  };
-  
-  next();
-});
+app.use(require('./src/middleware/requestLogger'));
 
-const PORT = process.env.PORT;
-const MONGO_URI = process.env.MONGO_URI;
+const PORT = process.env.PORT || 9999;
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/shopii';
 
 // Improve MongoDB connection with error handling
 console.log('Connecting to MongoDB...');
@@ -66,6 +42,16 @@ app.get('/', (req, res) => {
   
   // Default redirect to frontend
   res.redirect(frontendUrl);
+});
+
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  require('./src/utils/logger').error('Unhandled request error', err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    success: false,
+    message: status >= 500 ? 'Internal Server Error' : err.message
+  });
 });
 
 // Create HTTP server

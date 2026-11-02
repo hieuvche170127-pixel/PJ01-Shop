@@ -1,8 +1,6 @@
 const nodemailer = require('nodemailer');
 require('dotenv').config();
-// Log environment variables for debugging (remove in production)
-console.log('EMAIL_USER:', process.env.EMAIL_USER);
-console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? '[REDACTED]' : 'undefined');
+const logger = require('../utils/logger');
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -12,9 +10,8 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
-  tls: {
-    rejectUnauthorized: false,
-  },
+  connectionTimeout: 10000,
+  socketTimeout: 15000,
 });
 
 const sendEmail = async (to, subject, text) => {
@@ -26,11 +23,11 @@ const sendEmail = async (to, subject, text) => {
       text,
     };
     const info = await transporter.sendMail(mailOptions);
-    console.log(`Email sent to ${to}: ${info.messageId}`);
+    logger.info('Email sent');
     return info;
   } catch (error) {
-    console.error(`Failed to send email to ${to}:`, error);
-    throw new Error(`Email sending failed: ${error.message}`);
+    logger.error('Email delivery failed', error);
+    throw new Error('Email sending failed');
   }
 };
 

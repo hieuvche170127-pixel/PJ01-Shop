@@ -10,17 +10,6 @@ const validateEmail = (email) => {
   return re.test(String(email).toLowerCase());
 };
 
-// Hàm tạo mật khẩu ngẫu nhiên
-const generatePassword = () => {
-  const length = 8;
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let password = "";
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
-};
-
 // Đăng ký
 exports.register = async (req, res) => {
   try {
@@ -64,7 +53,25 @@ exports.register = async (req, res) => {
       logger.error("Failed to send welcome email:", emailError);
     }
 
-    res.status(201).json({ success: true, message: "Đăng ký thành công" });
+    if (user.action === 'lock') return res.status(403).json({ success: false, message: 'Account is locked' });
+
+    // Tạo JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role, ver: user.tokenVersion || 0 },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Đăng ký thành công",
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        role: user.role,
+      }
+    });
   } catch (error) {
     logger.error("Lỗi đăng ký:", error);
     res.status(500).json({ success: false, message: "Lỗi server" });
@@ -82,7 +89,7 @@ exports.login = async (req, res) => {
     }
 
     // Tìm người dùng theo email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
       return res.status(400).json({ success: false, message: "Thông tin đăng nhập không hợp lệ" });
     }
@@ -93,9 +100,11 @@ exports.login = async (req, res) => {
       return res.status(400).json({ success: false, message: "Thông tin đăng nhập không hợp lệ" });
     }
 
+    if (user.action === 'lock') return res.status(403).json({ success: false, message: 'Account is locked' });
+
     // Tạo JWT token
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id, role: user.role, ver: user.tokenVersion || 0 },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
@@ -117,32 +126,7 @@ exports.login = async (req, res) => {
 
 // Quên mật khẩu
 exports.forgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) {
-      return res.status(400).json({ success: false, message: "Email là bắt buộc" });
-    }
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
-    }
-
-    const newPassword = generatePassword();
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-    // Cập nhật mật khẩu mà không kích hoạt hook pre-save
-    await User.updateOne({ _id: user._id }, { password: hashedPassword });
-
-    // Gửi email với mật khẩu mới
-    await sendEmail(user.email, "Mật khẩu mới của bạn", `Mật khẩu mới của bạn là: ${newPassword}`);
-
-    res.json({ success: true, message: "Mật khẩu mới đã được gửi tới email của bạn" });
-  } catch (error) {
-    logger.error("Lỗi trong forgotPassword:", error);
-    res.status(500).json({ success: false, message: "Lỗi server" });
-  }
+  return require('./passwordResetController').request(req, res);
 };
 
 // Thay đổi vai trò người dùng
@@ -171,7 +155,7 @@ exports.changeRole = async (req, res) => {
 
     // Tạo JWT token mới với vai trò đã cập nhật
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id, role: user.role, ver: user.tokenVersion || 0 },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
@@ -260,46 +244,17 @@ exports.updateProfile = async (req, res) => {
 // Update user password
 exports.updatePassword = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const { currentPassword, newPassword } = req.body;
-
-    // Validation
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Current password and new password are required" 
-      });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "New password must be at least 6 characters" 
-      });
-    }
-
-    // Find user
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    // Verify current password
-    const isMatch = await user.comparePassword(currentPassword);
-    if (!isMatch) {
-      return res.status(400).json({ success: false, message: "Current password is incorrect" });
-    }
-
-    // Update password
-    user.password = newPassword; // Will be hashed by the pre-save hook
-    await user.save();
-
-    res.json({
-      success: true,
-      message: "Password updated successfully"
-    });
+    const result = await require('../services/passwordChange').change(req.user.id, req.body.currentPassword, req.body.newPassword);
+    require('../services/authService').disconnectUserSockets(req.app.get('io'), req.user.id);
+    res.json({ success: true, message: 'Đã đổi mật khẩu; các phiên đăng nhập cũ đã hết hiệu lực', ...result });
+  } catch (error) { require('../utils/apiError').respondError(res, error); }
+};
+// Đăng xuất
+exports.logout = async (req, res) => {
+  try {
+    res.json({ success: true, message: "Đăng xuất thành công" });
   } catch (error) {
-    logger.error("Error updating password:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    logger.error("Lỗi đăng xuất:", error);
+    res.status(500).json({ success: false, message: "Lỗi server" });
   }
 };

@@ -56,6 +56,7 @@ router.put("/return-requests/:id", sellerController.updateReturnRequest);
 
 // Báo cáo
 router.get("/report", sellerController.getSalesReport);
+router.get("/report/download.csv", require("../controllers/reportDownloadController").download);
 
 // Đánh giá và phản hồi
 router.get("/reviews", sellerController.getProductReviews);

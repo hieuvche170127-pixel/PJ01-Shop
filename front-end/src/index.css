@@ -1,0 +1,113 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  body {
+    @apply font-bodyFont bg-white text-gray-700;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-titleFont font-bold;
+  }
+}
+
+@layer components {
+  /* Global interactive elements */
+  .hoverEffect {
+    @apply duration-300 cursor-pointer transform transition-all hover:scale-105;
+  }
+  
+  /* Header/navbar elements */
+  .headerSedenavLi {
+    @apply hover:underline underline-offset-2 cursor-pointer text-gray-300 hover:text-white transition-colors;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply bg-primeColor text-white py-2 px-4 rounded shadow hover:bg-opacity-90 transition-all duration-300 font-medium;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800 py-2 px-4 rounded shadow hover:bg-gray-300 transition-all duration-300 font-medium;
+  }
+  
+  .btn-accent {
+    @apply bg-accent1 text-white py-2 px-4 rounded shadow hover:bg-opacity-90 transition-all duration-300 font-medium;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-lg overflow-hidden shadow-cardShadow hover:shadow-hoverShadow transition-all duration-300;
+  }
+
+  /* Badge */
+  .badge {
+    @apply absolute top-2 right-2 bg-accent1 text-white text-xs font-bold px-2 py-1 rounded-full;
+  }
+  
+  /* Product cards */
+  .product-card {
+    @apply card animate-fade-in;
+  }
+  
+  .product-image {
+    @apply w-full h-64 object-cover transition-transform duration-300 hover:scale-105;
+  }
+  
+  .product-title {
+    @apply text-lg font-semibold truncate mt-2;
+  }
+  
+  .product-price {
+    @apply text-lg font-bold text-primeColor mt-1;
+  }
+}
+
+/* NavLink active styles */
+nav .active li {
+  @apply text-primeColor font-semibold border-b-2 border-primeColor;
+}
+
+@media screen and (max-width: 665px) {
+  nav .active li {
+    @apply text-white font-semibold border-b-2 border-white;
+  }
+}
+
+/* Hide scrollbar for cleaner UI */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom animations */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+.slide-up {
+  animation: slideUp 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to { 
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Form elements */
+input, select, textarea {
+  @apply rounded border border-gray-300 focus:ring-2 focus:ring-primeColor focus:border-transparent transition-all outline-none px-3 py-2;
+}

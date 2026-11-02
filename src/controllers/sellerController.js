@@ -15,6 +15,8 @@ const ReturnRequest = require('../models/ReturnRequest');
 const Address = require('../models/Address');
 const Payment = require('../models/Payment');
 
+const lifecycle = require('../services/orderLifecycle');
+
 // Tạo cửa hàng mới
 exports.createStore = async (req, res) => {
   try {
@@ -66,7 +68,7 @@ exports.createStore = async (req, res) => {
 exports.loginAndSwitch = async (req, res) => {
   try {
     const { username, password } = req.body;
-    const user = await User.findOne({ username });
+    const user = await User.findOne({ username }).select("+password");
 
     if (!user) {
       return res.status(401).json({ success: false, message: "Invalid credentials" });
@@ -77,6 +79,8 @@ exports.loginAndSwitch = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
+    if (user.action === 'lock') return res.status(403).json({ success: false, message: 'Account is locked' });
+
     // Kiểm tra role
     if (user.role !== "seller") {
       return res.status(403).json({ success: false, message: "User is not a seller" });
@@ -86,6 +90,7 @@ exports.loginAndSwitch = async (req, res) => {
     const payload = {
       id: user._id,
       username: user.username,
+      ver: user.tokenVersion || 0,
       role: user.role
     };
     
@@ -251,152 +256,33 @@ exports.addNewCategory = async (req, res) => {
 
 // Đăng bán sản phẩm mới
 exports.createProduct = async (req, res) => {
-  try {
-    const { title, description, price, image, categoryId, isAuction, auctionEndTime, quantity } = req.body;
-
-    const product = new Product({
-      title,
-      description,
-      price,
-      image,
-      categoryId,
-      sellerId: req.user.id,
-      isAuction,
-      auctionEndTime
-    });
-
-    await product.save();
-
-    // Tạo bản ghi tồn kho
-    const inventory = new Inventory({
-      productId: product._id,
-      quantity: quantity || 0
-    });
-    await inventory.save();
-
-    res.status(201).json({ success: true, data: { product, inventory } });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  try { const data = await require('../services/productManagement').create(req.user.id, req.body); res.status(201).json({success:true,data}); } catch(e) { require('../utils/apiError').respondError(res,e); }
 };
 
 // Quản lý danh sách sản phẩm
 exports.getProducts = async (req, res) => {
   try {
-    console.log("Getting products for seller:", req.user.id);
-    
-    // Tìm sản phẩm của seller
-    const products = await Product.find({ sellerId: req.user.id });
-    
-    if (!products || products.length === 0) {
-      console.log("No products found for seller:", req.user.id);
-      return res.json({ success: true, data: [], message: "No products found" });
-    }
-    
-    console.log(`Found ${products.length} products for seller`);
-    const productIds = products.map(p => p._id);
-
-    // Lấy tất cả inventory records hiện có
-    const existingInventories = await Inventory.find({ productId: { $in: productIds } });
-    
-    // Tạo map để kiểm tra nhanh sản phẩm nào đã có inventory
-    const inventoryMap = {};
-    existingInventories.forEach(inv => {
-      inventoryMap[inv.productId.toString()] = inv;
-    });
-    
-    // Kiểm tra và tạo inventory records cho các sản phẩm chưa có
-    const inventoryPromises = [];
-    for (const product of products) {
-      if (!inventoryMap[product._id.toString()]) {
-        console.log(`Creating inventory for product ${product._id}`);
-        inventoryPromises.push(
-          new Inventory({
-            productId: product._id,
-            quantity: 0
-          }).save()
-        );
-      }
-    }
-    
-    // Nếu có inventory mới cần tạo
-    if (inventoryPromises.length > 0) {
-      await Promise.all(inventoryPromises);
-    }
-    
-    // Lấy lại tất cả inventory sau khi đã tạo đủ
-    const allInventories = await Inventory.find({ productId: { $in: productIds } })
-      .populate({ 
-        path: "productId", 
-        populate: { path: "categoryId" } 
-      });
-    
-    // Log products with missing categoryId
-    for (const inventory of allInventories) {
-      if (inventory.productId && !inventory.productId.categoryId) {
-        console.warn(`Warning: Product ${inventory.productId._id} has null categoryId`);
-      }
-    }
-    
-    // Đảm bảo thứ tự trả về khớp với thứ tự của products
-    const sortedInventories = [];
-    for (const product of products) {
-      const inventory = allInventories.find(inv => 
-        inv.productId && inv.productId._id.toString() === product._id.toString()
-      );
-      if (inventory) {
-        sortedInventories.push(inventory);
-      }
-    }
-    
-    res.json({ success: true, data: sortedInventories });
-  } catch (error) {
-    console.error("Error in getProducts:", error.message);
-    res.status(500).json({ success: false, message: error.message });
-  }
+    const products = await Product.find({sellerId:req.user.id}).populate('categoryId','name');
+    const stock = await Inventory.find({productId:{$in:products.map(p=>p._id)}}).lean();
+    const byId = new Map(stock.map(i=>[String(i.productId),i]));
+    res.json({success:true,data:products.map(product=>({...byId.get(String(product._id)),productId:product,quantity:byId.get(String(product._id))?.quantity??0,inventoryMissing:!byId.has(String(product._id))}))});
+  } catch(e) { require('../utils/apiError').respondError(res,e); }
 };
 // Lấy chi tiết 1 sản phẩm
 exports.getProductById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const product = await Product.findById(id).populate('categoryId');
-    
-    if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found" });
-    }
-    
-    // Kiểm tra sản phẩm thuộc về seller hiện tại
-    if (product.sellerId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: "Not authorized" });
-    }
-    
-    // Tìm hoặc tạo inventory
-    let inventory = await Inventory.findOne({ productId: id });
-    
-    // Nếu không có inventory, tạo mới
-    if (!inventory) {
-      inventory = new Inventory({
-        productId: id,
-        quantity: 0
-      });
-      await inventory.save();
-    }
-    
-    // Tạo đối tượng kết quả
-    const result = {
-      product,
-      inventory,
-      categoryName: product.categoryId ? product.categoryId.name : null
-    };
-
-    res.json({ success: true, data: result });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+    require('../utils/apiError').requireId(req.params.id);
+    const product=await Product.findOne({_id:req.params.id,sellerId:req.user.id}).populate('categoryId','name');
+    if(!product) return res.status(404).json({success:false,message:'Không tìm thấy sản phẩm của shop.'});
+    const inventory=await Inventory.findOne({productId:product._id});
+    res.json({success:true,data:{product,inventory:inventory||{quantity:0},inventoryMissing:!inventory,categoryName:product.categoryId?.name||null}});
+  }catch(e){require('../utils/apiError').respondError(res,e);}
 };
 exports.getReviewsByProductId = async (req, res) => {
   try {
     const { id } = req.params; // id là productId
+    require('../utils/apiError').requireId(id);
+    if(!await Product.exists({_id:id,sellerId:req.user.id})) return res.status(404).json({success:false,message:'Không tìm thấy sản phẩm của shop.'});
 
     // Lấy tất cả review & populate user
     const reviews = await Review.find({ productId: id })
@@ -442,49 +328,12 @@ exports.getReviewsByProductId = async (req, res) => {
 };
 
 exports.updateProduct = async (req, res) => {
-  try {
-    // 1. Cập nhật product
-    const product = await Product.findOneAndUpdate(
-      { _id: req.params.id, sellerId: req.user.id },
-      req.body,
-      { new: true }
-    );
-
-    if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found" });
-    }
-
-    // 2. Nếu request có quantity thì cập nhật Inventory
-    if (typeof req.body.quantity !== 'undefined') {
-      await Inventory.findOneAndUpdate(
-        { productId: product._id },
-        { quantity: req.body.quantity },
-        { new: true }
-      );
-    }
-
-    // 3. Lấy lại product và populate categoryId
-    const populatedProduct = await Product.findById(product._id)
-      .populate('categoryId', 'name');
-
-    // 4. Lấy quantity trong Inventory
-    const inventory = await Inventory.findOne({ productId: product._id });
-
-    res.json({
-      success: true,
-      data: {
-        product: populatedProduct,
-        categoryName: populatedProduct.categoryId?.name || null,
-        quantity: inventory ? inventory.quantity : 0
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  try { const data = await require('../services/productManagement').update(req.user.id, req.params.id, req.body); res.json({success:true,data}); } catch(e) { require('../utils/apiError').respondError(res,e); }
 };
 
 exports.deleteProduct = async (req, res) => {
   try {
+    if (await OrderItem.exists({ productId: req.params.id })) return res.status(409).json({ success: false, message: 'Sản phẩm có lịch sử đơn. Hãy tắt bán thay vì xóa.' });
     const product = await Product.findOneAndDelete({
       _id: req.params.id,
       sellerId: req.user.id
@@ -522,7 +371,12 @@ exports.getInventory = async (req, res) => {
 
 exports.updateInventory = async (req, res) => {
   try {
+    require('../utils/apiError').requireId(req.params.productId);
+    await require('../services/productManagement').approvedShop(req.user.id);
     const { quantity } = req.body;
+    if (!Number.isSafeInteger(quantity) || quantity < 0) {
+      return res.status(400).json({ success: false, message: 'Tồn kho phải là số nguyên không âm.' });
+    }
 
     // Kiểm tra sản phẩm thuộc về seller
     const product = await Product.findOne({
@@ -535,62 +389,28 @@ exports.updateInventory = async (req, res) => {
     }
 
     const inventory = await Inventory.findOneAndUpdate(
-      { productId: req.params.productId },
-      { quantity },
-      { new: true, upsert: true }
+      { productId: req.params.productId, 'checkoutReservations.0': { $exists: false } },
+      { $set: { quantity, lastUpdated: new Date() } },
+      { new: true, runValidators: true }
     );
+    if (!inventory) return res.status(409).json({ success: false, message: 'Kho đang xử lý đơn hoặc chưa tồn tại. Vui lòng thử lại.' });
 
     res.json({ success: true, data: inventory });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    require('../utils/apiError').respondError(res, error);
   }
 };
 
 // Xác nhận đơn hàng và in phiếu vận chuyển
 exports.confirmOrder = async (req, res) => {
   try {
-    const orderId = req.params.orderId;
-
-    // Kiểm tra đơn hàng có sản phẩm của seller
-    const orderItems = await OrderItem.find({ orderId })
-      .populate({
-        path: 'productId',
-        select: 'sellerId'
-      });
-
-    const sellerItems = orderItems.filter(item =>
-      item.productId.sellerId.toString() === req.user.id
-    );
-
-    if (sellerItems.length === 0) {
-      return res.status(404).json({ success: false, message: "No items found for this seller" });
-    }
-
-    // Cập nhật trạng thái đơn hàng
-    await OrderItem.updateMany(
-      { _id: { $in: sellerItems.map(i => i._id) } },
-      { status: "shipping" }
-    );
-
-    // Tạo thông tin vận chuyển
-    const shippingInfos = await Promise.all(sellerItems.map(async (item) => {
-      const shippingInfo = new ShippingInfo({
-        orderItemId: item._id,
-        trackingNumber: `TRK-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        status: "shipping"
-      });
-      await shippingInfo.save();
-      return shippingInfo;
-    }));
-
-    res.json({
-      success: true,
-      message: "Order confirmed",
-      data: shippingInfos
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+    const products = await Product.find({ sellerId: req.user.id }).select('_id');
+    const items = await OrderItem.find({ orderId: req.params.orderId, productId: { $in: products.map(p => p._id) } });
+    if (!items.length) return res.status(404).json({ success: false, message: 'No items found' });
+    const data = [];
+    for (const item of items) data.push(await lifecycle.transition(String(item._id), req.user, 'shipping'));
+    return res.json({ success: true, data });
+  } catch (error) { return lifecycle.respondError(res, error); }
 };
 
 // Xem đánh giá sản phẩm
@@ -631,299 +451,9 @@ exports.submitFeedback = async (req, res) => {
 };
 
 // Báo cáo doanh số nâng cấp cho dashboard
-// exports.getSalesReport = async (req, res) => {
-//   try {
-//     const { period } = req.query; // week, month, year
-//     const sellerId = req.user.id;
-
-//     // 1. Lấy tất cả sản phẩm của seller
-//     const products = await Product.find({ sellerId }).populate("categoryId", "name");
-//     const productIds = products.map(p => p._id);
-
-//     // 2. Lấy tất cả order items liên quan (đã giao - shipped)
-//     const orderItems = await OrderItem.find({
-//       productId: { $in: productIds },
-//       status: "shipped"
-//     }).populate({
-//       path: "orderId",
-//       select: "orderDate buyerId addressId",
-//       populate: {
-//         path: "addressId",
-//         select: "city country",
-//       }
-//     });
-
-
-//     // 3. Lọc theo khoảng thời gian
-//     const now = new Date();
-//     let startDate;
-//     switch (period) {
-//       case "week":
-//         startDate = new Date(now);
-//         startDate.setDate(startDate.getDate() - 7);
-//         break;
-//       case "month":
-//         startDate = new Date(now);
-//         startDate.setMonth(startDate.getMonth() - 1);
-//         break;
-//       case "year":
-//         startDate = new Date(now);
-//         startDate.setFullYear(startDate.getFullYear() - 1);
-//         break;
-//       default:
-//         startDate = new Date(0); // all time
-//     }
-
-//     const filteredItems = orderItems.filter(item =>
-//       item.orderId && new Date(item.orderId.orderDate) >= startDate
-//     );
-
-//     // --- Tổng quan ---
-//     const totalRevenue = filteredItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-//     // Lấy tất cả các buyerId duy nhất từ filteredItems
-//     const uniqueCustomerSet = new Set(
-//       filteredItems.map(i => i.orderId?.buyerId?.toString())
-//     );
-
-//     // Chuyển thành mảng
-//     const uniqueCustomerList = Array.from(uniqueCustomerSet);
-
-//     // Đếm số lượng
-//     const uniqueCustomers = uniqueCustomerList.length;
-
-
-//     const productsShipped = [...new Set(filteredItems.map(i => i.productId.toString()))].length;
-
-//     // --- Revenue by Category ---
-//     const categoryRevenueMap = {};
-//     filteredItems.forEach(item => {
-//       const product = products.find(p => p._id.equals(item.productId));
-//       const catName = product?.categoryId?.name || "Other";
-//       categoryRevenueMap[catName] = (categoryRevenueMap[catName] || 0) + (item.unitPrice * item.quantity);
-//     });
-//     // Format for PieChart
-//     const revenueByCategory = Object.entries(categoryRevenueMap).map(([name, value]) => ({
-//       name,
-//       value: Number(((value / totalRevenue) * 100).toFixed(0)) // % phần trăm
-//     }));
-
-//     // --- Top Shipping Destinations ---
-//     const destinationMap = {};
-//     filteredItems.forEach(item => {
-//       const city = item.orderId?.addressId?.city || "Unknown";
-//       destinationMap[city] = (destinationMap[city] || 0) + (item.unitPrice * item.quantity);
-//     });
-//     const revenueByDestination = Object.entries(destinationMap)
-//       .map(([name, value]) => ({
-//         name,
-//         value: Number(((value / totalRevenue) * 100).toFixed(0)),
-//         raw: value
-//       }))
-//       .sort((a, b) => b.raw - a.raw)
-//       .map(({ raw, ...rest }) => rest);
-
-
-//     // --- Revenue Over Time ---
-//     const revenueByDate = {};
-//     filteredItems.forEach(item => {
-//       const dateStr = new Date(item.orderId.orderDate).toISOString().split('T')[0];
-//       revenueByDate[dateStr] = (revenueByDate[dateStr] || 0) + (item.unitPrice * item.quantity);
-//     });
-//     const revenueOverTime = Object.entries(revenueByDate).map(([date, revenue]) => ({
-//       date,
-//       revenue
-//     })).sort((a, b) => new Date(a.date) - new Date(b.date));;
-
-//     // --- Top Products ---
-//     const productSalesMap = {};
-//     filteredItems.forEach(item => {
-//       const product = products.find(p => p._id.equals(item.productId));
-//       const name = product?.title || "Unknown";
-//       if (!productSalesMap[name]) productSalesMap[name] = { quantity: 0, revenue: 0 };
-//       productSalesMap[name].quantity += item.quantity;
-//       productSalesMap[name].revenue += item.unitPrice * item.quantity;
-//     });
-//     const topProducts = Object.entries(productSalesMap)
-//       .map(([product, val]) => ({
-//         product,
-//         quantity: val.quantity,
-//         revenue: val.revenue
-//       }))
-//       .sort((a, b) => b.revenue - a.revenue)
-//       .slice(0, 5); // Top 5
-
-//     // --- Trả kết quả ---
-//     res.json({
-//       success: true,
-//       data: {
-//         totalRevenue,
-//         uniqueCustomers,      // số lượng unique
-//         uniqueCustomerList,   // mảng các ID customer
-//         productsShipped,
-//         revenueByCategory,
-//         topDestinations: revenueByDestination,
-//         revenueOverTime,
-//         topProducts
-//       }
-//     });
-//   } catch (error) {
-//     res.status(500).json({ success: false, message: error.message });
-//   }
-// };
-// Báo cáo doanh số nâng cấp cho dashboard
 exports.getSalesReport = async (req, res) => {
-  try {
-    const { period, from, to } = req.query; // week, month, year, from, to
-    const sellerId = req.user.id;
-
-    // 1. Lấy tất cả sản phẩm của seller
-    const products = await Product.find({ sellerId }).populate("categoryId", "name");
-    const productIds = products.map(p => p._id);
-
-    // 2. Lấy tất cả order items liên quan (đã giao - shipped)
-    const orderItems = await OrderItem.find({
-      productId: { $in: productIds },
-      status: "shipped"
-    }).populate({
-      path: "orderId",
-      select: "orderDate buyerId addressId",
-      populate: {
-        path: "addressId",
-        select: "city country",
-      }
-    });
-
-    // 3. Lọc theo khoảng thời gian: ưu tiên from/to nếu có
-    let filteredItems = orderItems;
-    if (from || to) {
-      // Nếu có from/to thì lọc theo khoảng ngày
-      const fromDate = from ? new Date(from) : new Date(0);
-      // Đặt toDate là cuối ngày nếu có to
-      let toDate = to ? new Date(to) : new Date();
-      if (to) {
-        toDate.setHours(23, 59, 59, 999);
-      }
-      filteredItems = orderItems.filter(item => {
-        if (!item.orderId) return false;
-        const orderDate = new Date(item.orderId.orderDate);
-        return orderDate >= fromDate && orderDate <= toDate;
-      });
-    } else {
-      // Nếu không có from/to thì lọc theo period như cũ
-      const now = new Date();
-      let startDate;
-      switch (period) {
-        case "week":
-          startDate = new Date(now);
-          startDate.setDate(startDate.getDate() - 7);
-          break;
-        case "month":
-          startDate = new Date(now);
-          startDate.setMonth(startDate.getMonth() - 1);
-          break;
-        case "year":
-          startDate = new Date(now);
-          startDate.setFullYear(startDate.getFullYear() - 1);
-          break;
-        default:
-          startDate = new Date(0); // all time
-      }
-      filteredItems = orderItems.filter(item =>
-        item.orderId && new Date(item.orderId.orderDate) >= startDate
-      );
-    }
-
-    // --- Tổng quan ---
-    const totalRevenue = filteredItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-    // Lấy tất cả các buyerId duy nhất từ filteredItems
-    const uniqueCustomerSet = new Set(
-      filteredItems.map(i => i.orderId?.buyerId?.toString())
-    );
-
-    // Chuyển thành mảng
-    const uniqueCustomerList = Array.from(uniqueCustomerSet);
-
-    // Đếm số lượng
-    const uniqueCustomers = uniqueCustomerList.length;
-
-
-    const productsShipped = [...new Set(filteredItems.map(i => i.productId.toString()))].length;
-
-    // --- Revenue by Category ---
-    const categoryRevenueMap = {};
-    filteredItems.forEach(item => {
-      const product = products.find(p => p._id.equals(item.productId));
-      const catName = product?.categoryId?.name || "Other";
-categoryRevenueMap[catName] = (categoryRevenueMap[catName] || 0) + (item.unitPrice * item.quantity);
-    });
-    // Format for PieChart
-    const revenueByCategory = Object.entries(categoryRevenueMap).map(([name, value]) => ({
-      name,
-      value: Number(((value / totalRevenue) * 100).toFixed(0)) // % phần trăm
-    }));
-
-    // --- Top Shipping Destinations ---
-    const destinationMap = {};
-    filteredItems.forEach(item => {
-      const city = item.orderId?.addressId?.city || "Unknown";
-      destinationMap[city] = (destinationMap[city] || 0) + (item.unitPrice * item.quantity);
-    });
-    const revenueByDestination = Object.entries(destinationMap)
-      .map(([name, value]) => ({
-        name,
-        value: Number(((value / totalRevenue) * 100).toFixed(0)),
-        raw: value
-      }))
-      .sort((a, b) => b.raw - a.raw)
-      .map(({ raw, ...rest }) => rest);
-
-
-    // --- Revenue Over Time ---
-    const revenueByDate = {};
-    filteredItems.forEach(item => {
-      const dateStr = new Date(item.orderId.orderDate).toISOString().split('T')[0];
-      revenueByDate[dateStr] = (revenueByDate[dateStr] || 0) + (item.unitPrice * item.quantity);
-    });
-    const revenueOverTime = Object.entries(revenueByDate).map(([date, revenue]) => ({
-      date,
-      revenue
-    })).sort((a, b) => new Date(a.date) - new Date(b.date));;
-
-    // --- Top Products ---
-    const productSalesMap = {};
-    filteredItems.forEach(item => {
-      const product = products.find(p => p._id.equals(item.productId));
-      const name = product?.title || "Unknown";
-      if (!productSalesMap[name]) productSalesMap[name] = { quantity: 0, revenue: 0 };
-      productSalesMap[name].quantity += item.quantity;
-      productSalesMap[name].revenue += item.unitPrice * item.quantity;
-    });
-    const topProducts = Object.entries(productSalesMap)
-      .map(([product, val]) => ({
-        product,
-        quantity: val.quantity,
-        revenue: val.revenue
-      }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5); // Top 5
-
-    // --- Trả kết quả ---
-    res.json({
-      success: true,
-      data: {
-        totalRevenue,
-        uniqueCustomers,      // số lượng unique
-        uniqueCustomerList,   // mảng các ID customer
-        productsShipped,
-        revenueByCategory,
-        topDestinations: revenueByDestination,
-        revenueOverTime,
-        topProducts
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  try { res.json({ success: true, data: await require('../services/salesReport').report(req.user.id, req.query) }); }
+  catch (error) { require('../utils/apiError').respondError(res, error); }
 };
 // Lấy tất cả yêu cầu trả hàng liên quan tới seller hiện tại
 exports.getReturnRequests = async (req, res) => {
@@ -1165,78 +695,8 @@ exports.replyToReview = async (req, res) => {
 
 // Cập nhật trạng thái của orderItem (shipping/rejected)
 exports.updateOrderItemStatus = async (req, res) => {
-  try {
-    const { orderItemId } = req.params;
-    const { status } = req.body;
-    
-    // Kiểm tra status hợp lệ
-    const validStatuses = ["shipping", "rejected"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid status. Status must be 'shipping' or 'rejected'"
-      });
-    }
-    
-    // Tìm orderItem
-    const orderItem = await OrderItem.findById(orderItemId);
-    if (!orderItem) {
-      return res.status(404).json({ success: false, message: "Order item not found" });
-    }
-    
-    // Kiểm tra xem order item đã ở trạng thái shipped chưa
-    if (orderItem.status === "shipped") {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Cannot update status. Order item has already been shipped." 
-      });
-    }
-    
-    // Kiểm tra sản phẩm thuộc seller hiện tại
-    const product = await Product.findById(orderItem.productId);
-    if (!product || product.sellerId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: "Not authorized" });
-    }
-    
-    // Cập nhật trạng thái orderItem
-    orderItem.status = status;
-    await orderItem.save();
-    
-    // Nếu status là shipping, tạo ShippingInfo mới
-    let shippingInfo = null;
-    if (status === "shipping") {
-      // Kiểm tra xem đã có shipping info chưa
-      const existingShippingInfo = await ShippingInfo.findOne({ orderItemId });
-      
-      if (existingShippingInfo) {
-        // Cập nhật shipping info hiện có
-        existingShippingInfo.status = "shipping";
-        await existingShippingInfo.save();
-        shippingInfo = existingShippingInfo;
-      } else {
-        // Tạo shipping info mới với tracking number ngẫu nhiên
-        shippingInfo = new ShippingInfo({
-          orderItemId,
-          trackingNumber: `TRK-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-          status: "shipping"
-        });
-        await shippingInfo.save();
-      }
-    }
-    
-    // Trả về kết quả với orderItem đã cập nhật và shipping info (nếu có)
-    res.json({ 
-      success: true, 
-      data: { 
-        orderItem,
-        shippingInfo 
-      },
-      message: `Order item status updated to ${status}`
-    });
-    
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  try { return res.json({ success: true, data: await lifecycle.transition(req.params.orderItemId, req.user, req.body.status, req.body.returnedToStock) }); }
+  catch (error) { return lifecycle.respondError(res, error); }
 };
 
 exports.getShippingInfo = async (req, res) => {
@@ -1285,208 +745,28 @@ exports.getShippingInfo = async (req, res) => {
 
 exports.updateShippingStatus = async (req, res) => {
   try {
-    const { shippingInfoId } = req.params;
-    const { status } = req.body;
-    
-    // Validate status
-    const validShippingStatuses = ["shipping", "shipped", "failed to ship"];
-    if (!validShippingStatuses.includes(status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid shipping status. Status must be 'shipping', 'shipped', or 'failed to ship'"
-      });
-    }
-    
-    // Find shipping info
-    const shippingInfo = await ShippingInfo.findById(shippingInfoId);
-    if (!shippingInfo) {
-      return res.status(404).json({ success: false, message: "Shipping info not found" });
-    }
-    
-    // Find the related order item
-    const orderItem = await OrderItem.findById(shippingInfo.orderItemId);
-    if (!orderItem) {
-      return res.status(404).json({ success: false, message: "Order item not found" });
-    }
-    
-    // Kiểm tra xem order item đã ở trạng thái shipped chưa
-    if (orderItem.status === "shipped") {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Cannot update status. Order item has already been shipped." 
-      });
-    }
-    
-    // Verify seller owns the product
-    const product = await Product.findById(orderItem.productId);
-    if (!product || product.sellerId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: "Not authorized" });
-    }
-    
-    // Update shipping info status
-    shippingInfo.status = status;
-    await shippingInfo.save();
-    
-    // Update corresponding OrderItem status
-    let orderItemStatus;
-    switch(status) {
-      case "shipped":
-        orderItemStatus = "shipped";
-        break;
-      case "shipping":
-        orderItemStatus = "shipping";
-        break;
-      case "failed to ship":
-        orderItemStatus = "failed to ship";
-        break;
-      default:
-        orderItemStatus = orderItem.status; // Keep current status if no mapping
-    }
-    
-    orderItem.status = orderItemStatus;
-    await orderItem.save();
-    
-    res.json({
-      success: true,
-      data: {
-        shippingInfo,
-        orderItem
-      },
-      message: `Shipping status updated to ${status} and order item status updated to ${orderItemStatus}`
-    });
-    
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+    if (!require('mongoose').isObjectIdOrHexString(req.params.shippingInfoId)) return res.status(400).json({ message: 'Invalid shipping ID' });
+    const shipping = await ShippingInfo.findById(req.params.shippingInfoId);
+    if (!shipping) return res.status(404).json({ message: 'Shipping info not found' });
+    return res.json({ success: true, data: await lifecycle.transition(String(shipping.orderItemId), req.user, req.body.status, req.body.returnedToStock) });
+  } catch (error) { return lifecycle.respondError(res, error); }
 };
 
 // Lấy thông tin thanh toán của đơn hàng
 exports.getOrderPayment = async (req, res) => {
   try {
-    const { orderId } = req.params;
-
-    // Kiểm tra đơn hàng có sản phẩm của seller
-    const orderItems = await OrderItem.find({ orderId })
-      .populate({
-        path: 'productId',
-        select: 'sellerId'
-      });
-
-    const sellerItems = orderItems.filter(item =>
-      item.productId.sellerId.toString() === req.user.id
-    );
-
-    if (sellerItems.length === 0) {
-      return res.status(404).json({ success: false, message: "No items found for this seller" });
-    }
-
-    // Lấy thông tin thanh toán
-    const payment = await Payment.findOne({ orderId });
-    if (!payment) {
-      return res.status(404).json({ success: false, message: "Payment information not found" });
-    }
-
-    // Lấy thông tin đơn hàng
-    const order = await Order.findById(orderId);
-
-    res.json({
-      success: true,
-      data: {
-        payment: {
-          id: payment._id,
-          amount: payment.amount,
-          method: payment.method,
-          status: payment.status,
-          paidAt: payment.paidAt,
-          transactionId: payment.transactionId
-        },
-        order: {
-          id: order._id,
-          totalPrice: order.totalPrice,
-          status: order.status
-        }
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+    const value = await lifecycle.sellerSummary(req.params.orderId, req.user.id);
+    const p = value.payment, o = value.order;
+    return res.json({ success: true, data: {
+      payment: { id: p._id, amount: p.amount, method: p.method, status: p.status, paidAt: p.paidAt, transactionId: p.transactionId },
+      order: { id: o._id, totalPrice: o.totalPrice, status: o.status },
+      sellerAmount: value.sellerAmount, sellerCollected: value.sellerCollected, canCollectCOD: value.canCollectCOD,
+    } });
+  } catch (error) { return lifecycle.respondError(res, error); }
 };
 
 // Cập nhật trạng thái thanh toán
 exports.updatePaymentStatus = async (req, res) => {
-  try {
-    const { paymentId } = req.params;
-    const { status } = req.body;
-    
-    // Kiểm tra status hợp lệ
-    const validStatuses = ["paid", "failed"];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid status. Status must be 'paid' or 'failed'"
-      });
-    }
-    
-    // Tìm payment
-    const payment = await Payment.findById(paymentId);
-    if (!payment) {
-      return res.status(404).json({ success: false, message: "Payment not found" });
-    }
-    
-    // Nếu thanh toán đã là paid thì không thể thay đổi trạng thái
-    if (payment.status === "paid") {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Cannot change status of a paid payment" 
-      });
-    }
-
-    // Kiểm tra đơn hàng có sản phẩm của seller
-    const orderItems = await OrderItem.find({ orderId: payment.orderId })
-      .populate({
-        path: 'productId',
-        select: 'sellerId'
-      });
-
-    const sellerItems = orderItems.filter(item =>
-      item.productId.sellerId.toString() === req.user.id
-    );
-
-    if (sellerItems.length === 0) {
-      return res.status(403).json({ success: false, message: "Not authorized to update this payment" });
-    }
-    
-    // Cập nhật trạng thái thanh toán
-    payment.status = status;
-    
-    // Nếu status là paid, thêm thời gian thanh toán
-    if (status === "paid") {
-      payment.paidAt = new Date();
-    }
-    
-    await payment.save();
-    
-    // Nếu payment status là paid, KHÔNG cập nhật order status
-    // vì "paid" không phải là giá trị hợp lệ trong enum của Order.status
-    // Trong model Order, status chỉ có thể là: ["pending", "shipping", "shipped", "failed to ship", "rejected"]
-    // Thay vào đó, chỉ cập nhật các OrderItems có thể chuyển sang "shipping" nếu đang ở trạng thái "pending"
-    if (status === "paid") {
-      // Cập nhật trạng thái các OrderItem sang shipping nếu đang ở trạng thái pending
-      await Promise.all(sellerItems.map(async (item) => {
-        if (item.status === "pending") {
-          item.status = "shipping";
-          await item.save();
-        }
-      }));
-    }
-    
-    res.json({ 
-      success: true, 
-      data: payment,
-      message: `Payment status updated to ${status}`
-    });
-    
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  try { return res.json({ success: true, data: await lifecycle.collectCOD(req.params.paymentId, req.user.id, req.body.status) }); }
+  catch (error) { return lifecycle.respondError(res, error); }
 };

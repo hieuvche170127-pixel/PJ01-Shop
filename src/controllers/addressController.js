@@ -1,109 +1,44 @@
 const Address = require('../models/Address');
-
-// Create a new address
+const { validId } = require('../services/checkoutService');
+const logger = require('../utils/logger');
+const fields = ['fullName', 'phone', 'street', 'city', 'state', 'country', 'isDefault'];
+function pick(body) { return Object.fromEntries(fields.filter(key => Object.hasOwn(body, key)).map(key => [key, body[key]])); }
+function errorResponse(res, error) {
+  if (error.name === 'ValidationError' || error.name === 'CastError') return res.status(400).json({ success: false, message: 'Thông tin địa chỉ không hợp lệ.' });
+  logger.error('Address operation failed', error);
+  return res.status(500).json({ success: false, message: 'Server error' });
+}
+async function clearOtherDefaults(address) {
+  if (address.isDefault) await Address.updateMany({ userId: address.userId, _id: { $ne: address._id }, isDefault: true }, { $set: { isDefault: false } });
+}
 exports.createAddress = async (req, res) => {
   try {
-    const { fullName, phone, street, city, state, country, isDefault } = req.body;
-    const userId = req.user.id;
-
-    if (isDefault) {
-      await Address.updateMany({ userId, isDefault: true }, { isDefault: false });
-    }
-
-    const newAddress = new Address({
-      userId,
-      fullName,
-      phone,
-      street,
-      city,
-      state,
-      country,
-      isDefault: isDefault || false,
-    });
-
-    await newAddress.save();
-    res.status(201).json({ success: true, data: newAddress });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+    const address = await Address.create({ ...pick(req.body), userId: req.user.id });
+    await clearOtherDefaults(address);
+    return res.status(201).json({ success: true, data: address });
+  } catch (error) { return errorResponse(res, error); }
 };
-
-// Get all addresses for the user
 exports.getAddresses = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const addresses = await Address.find({ userId });
-    res.status(200).json({ success: true, data: addresses });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+  try { return res.json({ success: true, data: await Address.find({ userId: req.user.id }) }); }
+  catch (error) { return errorResponse(res, error); }
 };
-
-// Update an address
-exports.updateAddress = async (req, res) => {
+async function update(req, res, data) {
+  if (!validId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid address ID' });
   try {
-    const { id } = req.params;
-    const userId = req.user.id;
-    const updateData = req.body;
-
-    if (updateData.isDefault === true) {
-      await Address.updateMany({ userId, isDefault: true }, { isDefault: false });
-    }
-
-    const address = await Address.findOneAndUpdate(
-      { _id: id, userId },
-      updateData,
-      { new: true }
-    );
-
-    if (!address) {
-      return res.status(404).json({ success: false, message: 'Address not found' });
-    }
-
-    res.status(200).json({ success: true, data: address });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Delete an address
+    // Whitelist prevents changing userId/_id and injecting Mongo update operators.
+    const address = await Address.findOneAndUpdate({ _id: req.params.id, userId: req.user.id }, { $set: data }, { new: true, runValidators: true });
+    if (!address) return res.status(404).json({ success: false, message: 'Address not found' });
+    await clearOtherDefaults(address);
+    return res.json({ success: true, data: address });
+  } catch (error) { return errorResponse(res, error); }
+}
+exports.updateAddress = (req, res) => update(req, res, pick(req.body));
+exports.setDefaultAddress = (req, res) => update(req, res, { isDefault: true });
 exports.deleteAddress = async (req, res) => {
+  if (!validId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid address ID' });
   try {
-    const { id } = req.params;
-    const userId = req.user.id;
-
-    const address = await Address.findOneAndDelete({ _id: id, userId });
-
-    if (!address) {
-      return res.status(404).json({ success: false, message: 'Address not found' });
-    }
-
-    res.status(200).json({ success: true, message: 'Address deleted' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Set default address
-exports.setDefaultAddress = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-
-    await Address.updateMany({ userId, isDefault: true }, { isDefault: false });
-
-    const address = await Address.findOneAndUpdate(
-      { _id: id, userId },
-      { isDefault: true },
-      { new: true }
-    );
-
-    if (!address) {
-      return res.status(404).json({ success: false, message: 'Address not found' });
-    }
-
-    res.status(200).json({ success: true, data: address });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+    const address = await Address.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+    if (!address) return res.status(404).json({ success: false, message: 'Address not found' });
+    return res.json({ success: true, message: 'Address deleted' });
+  } catch (error) { return errorResponse(res, error); }
 };

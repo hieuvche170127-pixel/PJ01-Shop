@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "nodemon server",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/phase1.test.cjs tests/phase2.test.cjs tests/phase3.test.cjs tests/phase4.test.cjs tests/seedDemo.test.cjs",
+    "seed:demo": "node src/scripts/seedDemo.js"
   },
   "keywords": [
     "nodejs",

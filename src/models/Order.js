@@ -5,6 +5,9 @@ const orderSchema = new Schema(
   {
     buyerId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     addressId: { type: Schema.Types.ObjectId, ref: "Address", required: true },
+    originalTotalPrice: { type: Number, min: 0 },
+    voucherId: { type: Schema.Types.ObjectId, ref: 'Voucher' },
+    voucherReleased: { type: Boolean, default: false },
     orderDate: { type: Date, default: Date.now },
     totalPrice: { type: Number, required: true },
     status: {

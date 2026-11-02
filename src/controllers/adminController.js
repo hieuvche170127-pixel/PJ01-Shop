@@ -20,6 +20,7 @@ const {
 const { sendEmail } = require("../utils/email");
 const logger = require("../utils/logger");
 const mongoose = require("mongoose");
+const { disconnectUserSockets } = require("../services/authService");
 
 // --- Hàm Hỗ Trợ Xử Lý Lỗi (Helper Function for Error Responses) ---
 // Hàm này giúp chuẩn hóa việc xử lý và phản hồi lỗi.
@@ -113,6 +114,7 @@ exports.deleteUserByAdmin = async (req, res) => {
         .json({ success: false, message: "Người dùng không tồn tại" });
     }
     await User.findByIdAndDelete(userId);
+    disconnectUserSockets(req.app?.get("io"), userId);
     res
       .status(200)
       .json({ success: true, message: "Xóa người dùng thành công" });
@@ -137,45 +139,27 @@ exports.updateUserByAdmin = async (req, res) => {
         .json({ success: false, message: "Người dùng không tồn tại" });
     }
 
-    const previousAction = user.action; // Lưu trạng thái trước để kiểm tra thay đổi
-
+    const previousAction = user.action;
+    const previousRole = user.role;
     if (username) user.username = username;
     if (email) user.email = email;
-    if (role && ["buyer", "seller", "admin"].includes(role)) {
-      user.role = role;
-    }
-    if (action && ["lock", "unlock"].includes(action)) {
-      user.action = action;
-      // Nếu lock seller, reject store nếu tồn tại
-      if (action === "lock" && user.role === "seller") {
-        const store = await Store.findOne({ sellerId: user._id });
-        if (store) {
-          store.status = "rejected";
-          await store.save();
-          // Gửi email thông báo store bị rejected
-          await sendEmail(
-            user.email,
-            "Cửa hàng của bạn đã bị từ chối",
-            `Kính gửi ${user.username},\n\nCửa hàng của bạn (${store.storeName}) đã bị từ chối do tài khoản của bạn bị khóa. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.\n\nTrân trọng,\nShopii Team`
-          );
-        }
-      }
-    }
+    if (role && ['buyer', 'seller', 'admin'].includes(role)) user.role = role;
+    if (action && ['lock', 'unlock'].includes(action)) user.action = action;
 
-    // Gửi email nếu action thay đổi
-    if (action && action !== previousAction) {
-      const emailSubject =
-        action === "lock"
-          ? "Tài khoản của bạn đã bị khóa"
-          : "Tài khoản của bạn đã được mở khóa";
-      const emailText =
-        action === "lock"
-          ? `Kính gửi ${user.username},\n\nTài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.\n\nTrân trọng,\nShopii Team`
-          : `Kính gửi ${user.username},\n\nTài khoản của bạn đã được mở khóa. Bạn có thể tiếp tục sử dụng dịch vụ của chúng tôi.\n\nTrân trọng,\nShopii Team`;
-      await sendEmail(user.email, emailSubject, emailText);
-    }
-
+    // Apply access control before notification delivery. SMTP failure must not undo a lock.
     await user.save();
+    if (user.action === 'lock' || user.role !== previousRole) disconnectUserSockets(req.app?.get('io'), userId);
+    if (user.action === 'lock' && user.role === 'seller') {
+      await Store.updateOne({ sellerId: user._id }, { $set: { status: 'rejected' } });
+    }
+    if (user.action !== previousAction) {
+      try {
+        await sendEmail(user.email,
+          user.action === 'lock' ? 'Tài khoản đã bị khóa' : 'Tài khoản đã được mở khóa',
+          user.action === 'lock' ? 'Tài khoản Shopii của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.' : 'Tài khoản Shopii của bạn đã được mở khóa.');
+      } catch (error) { logger.error('Account notification failed; access change was saved', error); }
+    }
+
     const userToReturn = user.toObject();
     delete userToReturn.password;
 
@@ -503,6 +487,7 @@ exports.updateProductStatusAdmin = async (req, res) => {
  */
 exports.deleteProductAdmin = async (req, res) => {
   try {
+    if (await OrderItem.exists({ productId: req.params.id })) return res.status(409).json({ success: false, message: 'Sản phẩm có lịch sử đơn. Hãy tắt bán thay vì xóa.' });
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) {
       return res
@@ -823,6 +808,7 @@ exports.getProductReviewsAndStats = async (req, res) => {
 exports.getAdminReport = async (req, res) => {
   const { period } = req.query;
   try {
+    const financial = await require('../services/salesReport').report(null, req.query);
     // Date filter setup
     let dateFilter = {};
     const now = new Date();
@@ -1166,7 +1152,7 @@ exports.getAdminReport = async (req, res) => {
       ),
       // Đếm active seller và buyer từ danh sách ID
       User.countDocuments({ role: "seller", _id: { $in: activeSellerIds } }),
-      User.countDocuments({ role: "user", _id: { $in: activeBuyerIds } }),
+      User.countDocuments({ role: "buyer", _id: { $in: activeBuyerIds } }),
     ]);
 
     const orderStatus = {
@@ -1187,7 +1173,8 @@ exports.getAdminReport = async (req, res) => {
     res.status(200).json({
       success: true,
       summary: {
-        totalRevenue: totalRevenueStats[0]?.totalRevenue || 0,
+        totalRevenue: financial.totalRevenue,
+        totalDeliveredPayable: financial.totalDeliveredPayable, totalOutstanding: financial.totalOutstanding, legacyIssueCount: financial.legacyIssueCount, reportBasis: financial.reportBasis,
         totalOrders: orderStats.reduce((sum, stat) => sum + stat.count, 0),
         orderStatus,
         uniqueCustomers: uniqueCustomersStats[0]?.uniqueCustomers || 0,
@@ -1200,7 +1187,7 @@ exports.getAdminReport = async (req, res) => {
         newProducts,
       },
 
-      topSellers,
+      topSellers: financial.topSellers,
       ratings: {
         averageRating: ratingStats[0]?.averageRating?.toFixed(1) || 0,
         totalReviews: ratingStats[0]?.totalReviews || 0,
@@ -1215,18 +1202,18 @@ exports.getAdminReport = async (req, res) => {
         disputesCount,
       },
       trends: {
-        revenueOverTime,
+        revenueOverTime: financial.revenueOverTime,
         orderOverTime,
       },
       insights: {
-        revenueByCategory,
-        topProducts,
+        revenueByCategory: financial.revenueByCategory.map(row => ({ name: row.name, value: row.amount })),
+        topProducts: financial.topProducts,
       },
       activities: {
         recentActivity,
       },
     });
   } catch (error) {
-    handleError(res, error, "Lỗi khi lấy báo cáo dashboard");
+    require('../utils/apiError').respondError(res, error);
   }
 };

@@ -3,6 +3,7 @@ const Schema = mongoose.Schema;
 
 const conversationSchema = new Schema(
   {
+    pairKey: { type: String, unique: true, sparse: true },
     participants: [{
       type: Schema.Types.ObjectId,
       ref: "User"

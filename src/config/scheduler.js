@@ -1,11 +1,13 @@
 // scheduler.js
 const cron = require('node-cron');
+const { onlinePaymentsEnabled } = require('./payments');
 const { verifyPendingPayments } = require('../services/paymentVerificationService');
 
 /**
  * Khởi tạo tất cả các công việc định kỳ
  */
 const initScheduler = () => {
+  if (!onlinePaymentsEnabled()) return null;
   // Kiểm tra các thanh toán đang chờ mỗi 5 phút
   cron.schedule('*/5 * * * *', async () => {
     console.log('Running scheduled payment verification task...');

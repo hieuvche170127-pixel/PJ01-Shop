@@ -1,5 +1,6 @@
 // paymentVerificationService.js
 const axios = require('axios');
+const { onlinePaymentsEnabled } = require('../config/payments');
 const crypto = require('crypto');
 const { Payment, Order, OrderItem } = require('../models');
 
@@ -9,6 +10,7 @@ const { Payment, Order, OrderItem } = require('../models');
  * @returns {Promise<boolean>} - true nếu thanh toán thành công
  */
 const verifyVietQRPayment = async (payment) => {
+  if (!onlinePaymentsEnabled()) return false;
   try {
     // Check required environment variables
     if (!process.env.VIETQR_CLIENT_ID || !process.env.VIETQR_API_KEY) {
@@ -52,6 +54,7 @@ const verifyVietQRPayment = async (payment) => {
  * @returns {Promise<boolean>} - true nếu thanh toán thành công
  */
 const verifyPayOSPayment = async (payment) => {
+  if (!onlinePaymentsEnabled()) return false;
   try {
     // Check required environment variables
     if (!process.env.PAYOS_CLIENT_ID || !process.env.PAYOS_API_KEY) {
@@ -157,6 +160,7 @@ const updateOrderAfterPayment = async (orderId) => {
  * Hàm này sẽ được gọi định kỳ bởi scheduler
  */
 const verifyPendingPayments = async () => {
+  if (!onlinePaymentsEnabled()) return;
   try {
     console.log('Bắt đầu kiểm tra các thanh toán đang chờ...');
     

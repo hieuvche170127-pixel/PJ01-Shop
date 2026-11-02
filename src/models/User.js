@@ -4,10 +4,14 @@ const Schema = mongoose.Schema;
 
 const userSchema = new Schema(
   {
+    resetTokenHash: { type: String, select: false, index: true },
+    resetExpiresAt: { type: Date, select: false },
+    resetRequestedAt: { type: Date, select: false },
+    tokenVersion: { type: Number, default: 0 },
     username: { type: String, required: true, unique: true },
     fullname: { type: String },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    password: { type: String, required: true, select: false },
     role: {
       type: String,
       enum: ["buyer", "seller", "admin"],
@@ -22,6 +26,11 @@ const userSchema = new Schema(
   },
   { timestamps: true }
 );
+
+// Defense in depth: explicitly selected credentials still never serialize into API JSON.
+const hideCredentials = (doc, value) => { delete value.password; delete value.resetTokenHash; delete value.resetExpiresAt; delete value.resetRequestedAt; return value; };
+userSchema.set('toJSON', { transform: hideCredentials });
+userSchema.set('toObject', { transform: hideCredentials });
 
 // Mã hóa mật khẩu trước khi lưu
 userSchema.pre("save", async function (next) {

@@ -15,5 +15,7 @@ chatRouter.get('/conversations/:conversationId/messages', chatController.getMess
 
 // Find or create a conversation with another user
 chatRouter.get('/conversations/user/:recipientId', chatController.findOrCreateConversation);
+chatRouter.post('/conversations/user/:recipientId', chatController.findOrCreateConversation);
+chatRouter.patch('/conversations/:conversationId/read', chatController.markRead);
 
 module.exports = chatRouter; 

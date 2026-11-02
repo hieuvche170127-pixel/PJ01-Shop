@@ -7,15 +7,16 @@ const bcrypt = require("bcryptjs");
  */
 const searchUsers = async (req, res) => {
   try {
-    const { query } = req.query;
+    let { query } = req.query;
     
-    if (!query || query.length < 2) {
+    if (typeof query !== 'string' || query.length < 2 || query.length > 100) {
       return res.status(400).json({
         success: false,
         message: 'Search query must be at least 2 characters'
       });
     }
     
+    query = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Search for users by username or fullname
     const users = await User.find({
       $or: [
@@ -91,50 +92,22 @@ const getProfile = async (req, res) => {
     }
   };
   
-  const updateProfile = async (req, res) => {
-    try {
-      const userId = req.user.id;
-      const { avatarURL, password, fullname } = req.body;
-  
-      const updateData = {};
-  
-      // Nếu có fullname
-      if (fullname) {
-        updateData.fullname = fullname;
-      }
-  
-      // Nếu có avatarURL
-      if (avatarURL) {
-        updateData.avatarURL = avatarURL;
-      }
-  
-      // Nếu có mật khẩu mới → hash trước khi lưu
-      if (password) {
-        if (password.length < 6) {
-          return res.status(400).json({ success: false, message: "Mật khẩu phải dài ít nhất 6 ký tự" });
-        }
-        const salt = await bcrypt.genSalt(10);
-        updateData.password = await bcrypt.hash(password, salt);
-      }
-  
-      // Cập nhật người dùng
-      const updatedUser = await User.findByIdAndUpdate(
-        userId,
-        { $set: updateData },
-        { new: true, runValidators: true }
-      ).select("-password");
-  
-      if (!updatedUser) {
-        return res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
-      }
-  
-      res.json({ success: true, message: "Cập nhật thông tin thành công", user: updatedUser });
-    } catch (error) {
-      logger.error("Lỗi khi cập nhật profile:", error);
-      res.status(500).json({ success: false, message: "Lỗi server" });
+const updateProfile = async (req, res) => {
+  try {
+    const { fail, respondError } = require('../utils/apiError');
+    const fields = {};
+    for (const key of ['fullname','avatarURL']) if (key in req.body) {
+      if (typeof req.body[key] !== 'string' || req.body[key].length > (key === 'fullname' ? 200 : 2000)) fail(400, 'Thông tin hồ sơ không hợp lệ');
+      if (key === 'avatarURL' && req.body[key] && !/^https?:\/\//i.test(req.body[key])) fail(400, 'Ảnh đại diện phải là URL HTTP(S)');
+      fields[key] = req.body[key].trim();
     }
-  };
-  
+    let result;
+    if (req.body.password) result = await require('../services/passwordChange').change(req.user.id, req.body.currentPassword, req.body.password, fields);
+    else result = { user: await User.findByIdAndUpdate(req.user.id, { $set: fields }, { new: true, runValidators: true }) };
+    if (result.token) require('../services/authService').disconnectUserSockets(req.app.get('io'), req.user.id);
+    res.json({ success: true, message: 'Cập nhật thông tin thành công', ...result });
+  } catch (error) { require('../utils/apiError').respondError(res, error); }
+};
 
 module.exports = {
   searchUsers,
