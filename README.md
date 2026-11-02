@@ -12,7 +12,7 @@ Website thương mại điện tử với ba vai trò **Buyer, Seller và Admin*
 | Mạnh Hùng | Seller: sản phẩm, ảnh, tồn kho, giao hàng và thu COD |
 | Gia Anh | Admin, chat, báo cáo và xuất CSV |
 
-Xem [phân công chi tiết, cách review và kịch bản demo](TEAM_REVIEW_DEMO.md).
+Tài liệu phân công và review được chia sẻ riêng trong nhóm.
 
 ## Chức năng
 
@@ -36,8 +36,7 @@ PJ01-Shop/
 ├── tests/                 # Kiểm thử nghiệp vụ và phân quyền
 ├── postman/               # Collection và environment mẫu
 ├── product-sources.json   # Catalog để seed
-├── .env.example           # Cấu hình mẫu không chứa khóa thật
-└── TEAM_REVIEW_DEMO.md    # Phân công và hướng dẫn review
+└── .env.example           # Cấu hình mẫu không chứa khóa thật
 ```
 
 Backend chính nằm ở **gốc repository**. Không cần thư mục `back-end/` hoặc import dump database cũ.
